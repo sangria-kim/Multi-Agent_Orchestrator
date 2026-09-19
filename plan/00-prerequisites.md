@@ -102,6 +102,15 @@ echo "Reply with exactly: PONG" | codex exec - -s read-only --skip-git-repo-chec
 
 그래서 **`-m`으로 모델을 명시적으로 고정한다.** 안 하면 config를 손대거나 Codex를 업데이트할 때마다 결과를 만든 모델이 조용히 바뀌고, 두 결과를 비교한 근거가 흔들린다. Claude도 같은 이유로 `--model`을 고정한다.
 
+### 고정 모델 (확정)
+
+| Agent | 모델 | Effort | 확인 명령 |
+|---|---|---|---|
+| Claude | `sonnet` | `--effort high` | `claude -p --tools "" --output-format text --model sonnet --effort high` |
+| Codex | `gpt-5.6-terra` | `-c model_reasoning_effort=high` | `codex exec - -s read-only --skip-git-repo-check --color never --ephemeral --ignore-user-config -m gpt-5.6-terra -c model_reasoning_effort=high` |
+
+Codex는 실제 실행해 stderr 배너의 `reasoning effort: high` 줄로 값이 반영됐음을 확인했다(2026-09-20).
+
 **아래 명령줄 전체를 한 번에 실행해 확인했다. exit 0, stdout에 본문만, 임시 디렉터리에 잔여 파일 없음.**
 
 ```bash
@@ -140,6 +149,12 @@ cd /Users/sangjeongkim/claude/multi && pnpm create next-app@latest app --typescr
 ```
 
 `plan/` 폴더와 나란히 `app/` 폴더가 생긴다.
+
+**`create-next-app`이 `app/` 안에 자체 git 저장소를 만든다.** 최상위 git 저장소는 `/Users/sangjeongkim/claude/multi`(아래 "git 초기화" 절)에 하나만 둬야 하므로, 프로젝트 초기화 직후 `rm -rf app/.git`으로 중첩 저장소를 제거하고 나서 최상위에서 `git init`한다. 순서를 바꾸면 `app/`이 최상위 저장소에 gitlink(빈 서브모듈 참조)로 잡혀 파일이 하나도 커밋되지 않는다.
+
+**Next.js 16.3.5는 `--no-turbopack`을 줘도 `package.json`의 `dev` 스크립트가 `next dev`로 생성되고 실제로는 Turbopack이 기본으로 켜진다** (`pnpm dev` 로그에 `Next.js 16.3.5 (Turbopack)`로 찍힌다). 이 버전에서 Webpack으로 고정하려면 스캐폴딩 이후 `dev` 스크립트를 `next dev --no-turbopack`으로 직접 고쳐야 한다. V1 범위에서는 동작에 지장이 없어 그대로 둔다.
+
+**`create-next-app`이 `app/AGENTS.md`, `app/CLAUDE.md` 보일러플레이트를 함께 생성한다.** [실행 격리의 실제 범위](#실행-격리의-실제-범위) 절에서 설명한 `CLAUDE.md` 상위 디렉터리 자동 탐색 문제가 바로 이 파일 때문에 실재한다. Phase 1에서 Adapter 실행 cwd를 레포 밖으로 두는 설계가 이 문제를 우회하는 근거이므로, 이 파일들을 지우지 않고 그대로 둔다.
 
 ### 추가 의존성
 
@@ -184,12 +199,12 @@ cd /Users/sangjeongkim/claude/multi && git init && git add -A && git commit -m "
 
 ## 완료 확인
 
-- [ ] `claude auth`로 재로그인하고 `claude -p`가 401 없이 응답한다
-- [ ] `claude --version`, `codex --version`이 버전을 출력한다
-- [ ] 두 CLI가 각각 비대화형으로 프롬프트 하나를 처리해 stdout으로 결과를 낸다
-- [ ] **Adapter가 쓸 명령줄 전체를 그대로 한 번 실행해 exit 0을 본다.** 플래그 조합 단위로 확인하는 것이다
-- [ ] 두 CLI의 고정 모델을 정해 표에 기록했다
-- [ ] `pnpm dev`로 Next.js 기본 페이지가 뜬다
-- [ ] `.env.local`이 생성되고 `.gitignore`에 `.data/`가 있다
+- [ ] `claude auth`(또는 `/login`)로 재로그인하고 `claude -p`가 401/미로그인 에러 없이 응답한다 — **2026-09-20 기준 미완료.** `claude -p`가 `Not logged in · Please run /login` (exit 1)을 반환해 사용자의 수동 재로그인이 필요하다
+- [x] `claude --version`, `codex --version`이 버전을 출력한다 (`claude` 2.1.109, `codex-cli` 0.155.1)
+- [x] 두 CLI가 각각 비대화형으로 프롬프트 하나를 처리해 stdout으로 결과를 낸다 — Codex는 확인 완료(`PONG`, exit 0, stdout에 본문만). Claude는 로그인 완료 후 재확인 필요
+- [x] **Adapter가 쓸 명령줄 전체를 그대로 한 번 실행해 exit 0을 본다.** — Codex 조합(`-s read-only --skip-git-repo-check --color never --ephemeral --ignore-user-config -m gpt-5.6-terra -c model_reasoning_effort=high`) exit 0, 임시 디렉터리에 잔여 파일 없음 확인. Claude 조합은 로그인 후 재확인 필요
+- [x] 두 CLI의 고정 모델을 정해 표에 기록했다 (Claude `sonnet`+`--effort high`, Codex `gpt-5.6-terra`+`model_reasoning_effort=high`)
+- [x] `pnpm dev`로 Next.js 기본 페이지가 뜬다 (`curl localhost:3000` → HTTP 200)
+- [x] `.env.local`이 생성되고 `.gitignore`에 `.data/`가 있다
 
 다음: [01-phase1-execution.md](01-phase1-execution.md)
