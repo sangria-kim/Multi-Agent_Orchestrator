@@ -199,10 +199,10 @@ cd /Users/sangjeongkim/claude/multi && git init && git add -A && git commit -m "
 
 ## 완료 확인
 
-- [ ] `claude auth`(또는 `/login`)로 재로그인하고 `claude -p`가 401/미로그인 에러 없이 응답한다 — **2026-09-20 기준 미완료.** `claude -p`가 `Not logged in · Please run /login` (exit 1)을 반환해 사용자의 수동 재로그인이 필요하다
+- [x] `claude auth`(또는 `/login`)로 재로그인하고 `claude -p`가 401/미로그인 에러 없이 응답한다 — 2026-09-20 재로그인 완료, `claude -p --tools "" --output-format text --model sonnet --effort high` exit 0으로 재확인
 - [x] `claude --version`, `codex --version`이 버전을 출력한다 (`claude` 2.1.109, `codex-cli` 0.155.1)
-- [x] 두 CLI가 각각 비대화형으로 프롬프트 하나를 처리해 stdout으로 결과를 낸다 — Codex는 확인 완료(`PONG`, exit 0, stdout에 본문만). Claude는 로그인 완료 후 재확인 필요
-- [x] **Adapter가 쓸 명령줄 전체를 그대로 한 번 실행해 exit 0을 본다.** — Codex 조합(`-s read-only --skip-git-repo-check --color never --ephemeral --ignore-user-config -m gpt-5.6-terra -c model_reasoning_effort=high`) exit 0, 임시 디렉터리에 잔여 파일 없음 확인. Claude 조합은 로그인 후 재확인 필요
+- [x] 두 CLI가 각각 비대화형으로 프롬프트 하나를 처리해 stdout으로 결과를 낸다 — Codex(`PONG`, exit 0, stdout에 본문만), Claude(인사말 응답, exit 0, stdout에 본문만·stderr 비어있음) 모두 확인
+- [x] **Adapter가 쓸 명령줄 전체를 그대로 한 번 실행해 exit 0을 본다.** — Codex 조합(`-s read-only --skip-git-repo-check --color never --ephemeral --ignore-user-config -m gpt-5.6-terra -c model_reasoning_effort=high`)과 Claude 조합(`-p --tools "" --output-format text --model sonnet --effort high`) 모두 exit 0 확인. Codex는 임시 디렉터리에 잔여 파일 없음까지 확인
 - [x] 두 CLI의 고정 모델을 정해 표에 기록했다 (Claude `sonnet`+`--effort high`, Codex `gpt-5.6-terra`+`model_reasoning_effort=high`)
 - [x] `pnpm dev`로 Next.js 기본 페이지가 뜬다 (`curl localhost:3000` → HTTP 200)
 - [x] `.env.local`이 생성되고 `.gitignore`에 `.data/`가 있다
