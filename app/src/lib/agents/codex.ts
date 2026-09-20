@@ -1,0 +1,64 @@
+import os from 'node:os'
+
+import { spawnCli } from './spawn'
+import type { AgentAdapter, AgentHealth, AgentRunInput, AgentRunOutput } from './types'
+
+// 00-prerequisites.md에서 확인한 고정값. 추측으로 바꾸지 않는다.
+const CLI_PATH = process.env.CODEX_CLI_PATH || 'codex'
+const MODEL = 'gpt-5.6-terra'
+const REASONING_EFFORT = 'high'
+const KILL_GRACE_MS = Number(process.env.AGENT_KILL_GRACE_MS ?? 5000)
+
+function normalizeResult(raw: string): string {
+  return raw.trim()
+}
+
+async function run(input: AgentRunInput): Promise<AgentRunOutput> {
+  const { stdout, stderr, exitCode } = await spawnCli({
+    cliPath: CLI_PATH,
+    args: [
+      'exec',
+      '-',
+      '-s',
+      'read-only',
+      '--skip-git-repo-check',
+      '--color',
+      'never',
+      '--ephemeral',
+      '--ignore-user-config',
+      '-m',
+      MODEL,
+      '-c',
+      `model_reasoning_effort=${REASONING_EFFORT}`,
+    ],
+    input: input.prompt,
+    cwd: input.workdir,
+    signal: input.signal,
+    killGraceMs: KILL_GRACE_MS,
+  })
+  return { content: normalizeResult(stdout), raw: stdout, stderr, exitCode }
+}
+
+async function healthCheck(): Promise<AgentHealth> {
+  try {
+    const { stdout, exitCode } = await spawnCli({
+      cliPath: CLI_PATH,
+      args: ['--version'],
+      input: '',
+      cwd: os.tmpdir(),
+      signal: new AbortController().signal,
+      killGraceMs: 1000,
+    })
+    if (exitCode !== 0) return { ok: false, reason: `exit ${exitCode}` }
+    return { ok: true, version: stdout.trim() }
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export const codexAdapter: AgentAdapter = {
+  id: 'codex',
+  run,
+  healthCheck,
+  normalizeResult,
+}

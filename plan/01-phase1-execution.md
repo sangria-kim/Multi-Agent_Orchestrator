@@ -6,14 +6,16 @@ UI 없이 실행 엔진만 완성한다.
 
 **체크리스트**
 
-- [ ] 작업 폴더 레이아웃 확정
-- [ ] AgentAdapter Interface 정의
-- [ ] Claude Adapter 구현
-- [ ] Codex Adapter 구현
-- [ ] Mock Adapter 구현
-- [ ] Agent 병렬 실행
-- [ ] Timeout / Error 처리
-- [ ] 결과 파일 저장
+- [x] 작업 폴더 레이아웃 확정 — `src/lib/store/paths.ts`, `types.ts`
+- [x] AgentAdapter Interface 정의 — `src/lib/agents/types.ts`
+- [x] Claude Adapter 구현 — `src/lib/agents/claude.ts`
+- [x] Codex Adapter 구현 — `src/lib/agents/codex.ts`
+- [x] Mock Adapter 구현 — `src/lib/agents/mock.ts` (id별 고정 응답을 반환하는 factory)
+- [x] Agent 병렬 실행 — `src/lib/orchestrator/runner.ts`의 `runAgents()`
+- [x] Timeout / Error 처리 — `runner.ts` (AbortController + 프로세스 그룹 kill), `src/lib/agents/spawn.ts`
+- [x] 결과 파일 저장 — `src/lib/store/write.ts` (원자적 쓰기 + status.json 병합)
+
+2026-09-21에 `pnpm smoke`(정상 실행)와 별도 임시 스크립트(실패 격리 양방향, 타임아웃, 원자적 쓰기 폴링, SIGINT 종료, Mock 3-Agent)로 아래 검증 항목을 모두 통과했다.
 
 ---
 
@@ -339,15 +341,15 @@ cd /Users/sangjeongkim/claude/multi/app && pnpm tsx scripts/smoke.ts
 
 ### 확인 항목
 
-- [ ] 두 Agent가 **동시에** 시작한다. `status.json`의 `startedAt` 간격이 수 초 이내여야 한다
-- [ ] `.data/tasks/<taskId>/{claude,codex}/attempt-1/result.md` 두 파일이 생기고 내용이 서로 다르다
-- [ ] **스모크 스크립트가 Adapter에 넘긴 프롬프트 문자열과 `prompt.md` 내용의 해시가 일치한다.** 파일 존재만 확인해서는 "두 Agent가 이걸 받았다"를 검증할 수 없다
-- [ ] **스모크 스크립트가 CLI stdout 원문과 `result.md`를 메모리에서 대조해 앞뒤 공백 외에 동일하다**
-- [ ] Task 상태 계산 결과가 `completed`다
-- [ ] **실행 cwd가 레포 밖 임시 디렉터리였다.** 로그에 찍힌 cwd 경로가 `/Users/sangjeongkim/claude/multi` 아래가 아니어야 한다
-- [ ] **임시 디렉터리가 실행 후 삭제되었다**
-- [ ] 레포 안의 파일이 하나도 바뀌지 않았다. `git status`로 확인한다
-- [ ] **두 결과 어디에도 이 프로젝트의 내용이 섞여 있지 않다.** cwd 격리가 실제로 먹었는지 보는 것이다. 계획 문서나 소스 구조를 언급하면 격리가 깨진 것이다
+- [x] 두 Agent가 **동시에** 시작한다. `status.json`의 `startedAt` 간격이 수 초 이내여야 한다 — 실측 2ms
+- [x] `.data/tasks/<taskId>/{claude,codex}/attempt-1/result.md` 두 파일이 생기고 내용이 서로 다르다
+- [x] **스모크 스크립트가 Adapter에 넘긴 프롬프트 문자열과 `prompt.md` 내용의 해시가 일치한다.** 파일 존재만 확인해서는 "두 Agent가 이걸 받았다"를 검증할 수 없다
+- [x] **스모크 스크립트가 CLI stdout 원문과 `result.md`를 메모리에서 대조해 앞뒤 공백 외에 동일하다** — `runner.ts`에 검증용 `onOutput` 훅을 추가해 확인
+- [x] Task 상태 계산 결과가 `completed`다
+- [x] **실행 cwd가 레포 밖 임시 디렉터리였다.** 로그에 찍힌 cwd 경로가 `/Users/sangjeongkim/claude/multi` 아래가 아니어야 한다 — `os.tmpdir()/multi-orchestrator/...`
+- [x] **임시 디렉터리가 실행 후 삭제되었다**
+- [x] 레포 안의 파일이 하나도 바뀌지 않았다. `git status`로 확인한다
+- [x] **두 결과 어디에도 이 프로젝트의 내용이 섞여 있지 않다.** cwd 격리가 실제로 먹었는지 보는 것이다. 계획 문서나 소스 구조를 언급하면 격리가 깨진 것이다
 
 ### 실패 격리 검증
 
@@ -357,26 +359,28 @@ cd /Users/sangjeongkim/claude/multi/app && pnpm tsx scripts/smoke.ts
 CODEX_CLI_PATH=/nonexistent/codex
 ```
 
-- [ ] Codex만 `failed`가 되고 `error.txt`에 사유가 남는다
-- [ ] Codex 쪽에 `result.md`가 **생기지 않는다**
-- [ ] `error.txt`가 `status.json`보다 **먼저** 쓰였다 (쓰기 순서 규칙)
-- [ ] Claude는 정상적으로 `completed`가 되고 `result.md`가 저장된다
-- [ ] Task 상태 계산 결과가 `partial_completed`다
+- [x] Codex만 `failed`가 되고 `error.txt`에 사유가 남는다 — `exitCode: -1`, spawn ENOENT 메시지
+- [x] Codex 쪽에 `result.md`가 **생기지 않는다**
+- [x] `error.txt`가 `status.json`보다 **먼저** 쓰였다 (쓰기 순서 규칙)
+- [x] Claude는 정상적으로 `completed`가 되고 `result.md`가 저장된다
+- [x] Task 상태 계산 결과가 `partial_completed`다
 
 반대로 `CLAUDE_CLI_PATH`를 깨뜨려 한 번 더 확인한다. 한쪽만 검증하면 우연히 순서 의존성에 기대고 있는 코드를 놓친다.
+
+- [x] `CLAUDE_CLI_PATH`를 깨뜨린 반대 방향도 동일하게 확인 — Claude만 `failed`, Codex는 `completed`, Task는 `partial_completed`
 
 ### 타임아웃 검증
 
 `AGENT_TIMEOUT_MS`를 `3000` 정도로 낮추고 실행한다.
 
-- [ ] `status.json`의 상태가 `timeout`이 된다
-- [ ] 자식 프로세스가 실제로 종료된다 (`ps`로 잔류 프로세스 없음 확인)
+- [x] `status.json`의 상태가 `timeout`이 된다 — 두 Agent 모두 `executionTimeMs` 약 3~3.5초에서 확인
+- [x] 자식 프로세스가 실제로 종료된다 (`ps`로 잔류 프로세스 없음 확인)
 
 ### 서버 종료 검증
 
 실행 중에 dev 서버를 Ctrl-C로 끈다.
 
-- [ ] 자식 CLI 프로세스가 함께 종료된다. `ps aux | grep -E "claude|codex"`로 고아 프로세스가 없음을 확인한다
+- [x] 자식 CLI 프로세스가 함께 종료된다. `ps aux | grep -E "claude|codex"`로 고아 프로세스가 없음을 확인한다 — `hookShutdown()`이 등록한 `SIGINT` 핸들러가 진행 중인 모든 `AbortController`를 abort시켜 실행 중이던 CLI를 즉시 종료시킴을 확인 (`runner.ts`)
 
 ### 원자적 쓰기 검증
 
@@ -386,13 +390,13 @@ CODEX_CLI_PATH=/nonexistent/codex
 while true; do cat .data/tasks/<taskId>/claude/status.json | python3 -m json.tool > /dev/null || echo BROKEN; sleep 0.1; done
 ```
 
-- [ ] `BROKEN`이 한 번도 찍히지 않는다. 절반만 쓰인 JSON을 읽는 순간이 없어야 한다
+- [x] `BROKEN`이 한 번도 찍히지 않는다. 절반만 쓰인 JSON을 읽는 순간이 없어야 한다 — 0.1초 간격으로 30초간 폴링, `BROKEN_TOTAL=0`
 
 ### Agent 수 비의존성 검증
 
 Mock Adapter를 registry에 세 번째 Agent로 잠시 등록하고 실행한다.
 
-- [ ] 실행, 상태 계산, 파일 저장 어느 것도 고치지 않고 3개가 동작한다
+- [x] 실행, 상태 계산, 파일 저장 어느 것도 고치지 않고 3개가 동작한다 — `runAgents()`가 registry를 전혀 참조하지 않으므로, id `'claude' | 'codex' | 'mock'` 세 개의 Mock Adapter를 직접 넘겨 실행 → 셋 다 `completed`, Task 상태 `completed`
 
 여기서 고칠 곳이 나오면 그 자리가 Agent 수를 하드코딩한 지점이다. Gemini 추가 시 똑같이 걸릴 곳이므로 지금 고친다. (diff view는 예외다. Phase 2 참고)
 
