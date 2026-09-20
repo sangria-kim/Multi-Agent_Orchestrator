@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:mock": "AGENT_USE_MOCK=1 next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

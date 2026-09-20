@@ -2,12 +2,12 @@ import fs from 'node:fs'
 
 import * as registry from '../agents/registry'
 import type { AgentAdapter, AgentId, AgentRunOutput } from '../agents/types'
+import { AGENT_TIMEOUT_MS } from '../env'
 import { attemptDir, createTaskFolder, errorPath, execWorkdir, promptPath, resultPath, taskJsonPath } from '../store/paths'
+import { readAgentStatus } from '../store/read'
 import type { TaskFile } from '../store/types'
 import { updateAgentStatus, writeJsonAtomic, writeTextAtomic } from '../store/write'
 import { buildPrompt } from './prompt'
-
-const AGENT_TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS ?? 300000)
 
 // dev 리로드를 넘겨 진행 중인 실행을 계속 추적하기 위해 globalThis에 캐시한다.
 // 같은 Agent가 이미 running이면 재실행 요청을 거절하는 것도 이 레지스트리로 판단한다.
@@ -184,6 +184,33 @@ export async function runTask(
     return adapter
   })
   await runAgents(taskId, prompt, adapters, 1, options)
+}
+
+// 해당 Agent만 재실행한다. 재실행은 저장된 prompt.md를 그대로 읽어 쓴다 — task.json에서
+// 다시 조립하면 buildPrompt()의 고정 문구가 바뀐 뒤 attempt끼리 다른 입력을 받게 된다.
+// 기존 attempt 폴더는 건드리지 않고 새 attempt 폴더를 만든다 (원칙 4: Result Preservation).
+// 실제 실행은 기다리지 않고 시작만 시킨다 — 호출자(API route)는 즉시 응답해야 한다.
+export function retryAgent(taskId: string, agentId: AgentId, options?: RunAgentsOptions): { attempt: number } {
+  const adapter = registry.get(agentId)
+  if (!adapter) throw new Error(`unknown agent: ${agentId}`)
+
+  const key = `${taskId}/${agentId}`
+  if (running.has(key)) {
+    throw new Error(`${agentId} is already running for task ${taskId}`)
+  }
+
+  const prompt = fs.readFileSync(promptPath(taskId), 'utf8')
+  const previousStatus = readAgentStatus(taskId, agentId)
+  const attempt = (previousStatus?.latestAttempt ?? 0) + 1
+
+  fs.mkdirSync(attemptDir(taskId, agentId, attempt), { recursive: true })
+  updateAgentStatus(taskId, agentId, attempt, { status: 'queued' })
+
+  runOneAttempt(taskId, prompt, adapter, attempt, options).catch((err) => {
+    console.error(`retryAgent failed for ${taskId}/${agentId}:`, err)
+  })
+
+  return { attempt }
 }
 
 // 서버 종료 시 진행 중인 프로세스 그룹을 전부 정리한다. detached: true로 띄운 자식은

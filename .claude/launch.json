@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "app-mock",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "app", "run", "dev:mock"],
+      "port": 3000
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "app", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

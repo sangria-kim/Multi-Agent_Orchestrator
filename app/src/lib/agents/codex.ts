@@ -1,5 +1,6 @@
 import os from 'node:os'
 
+import { AGENT_KILL_GRACE_MS } from '../env'
 import { spawnCli } from './spawn'
 import type { AgentAdapter, AgentHealth, AgentRunInput, AgentRunOutput } from './types'
 
@@ -7,7 +8,6 @@ import type { AgentAdapter, AgentHealth, AgentRunInput, AgentRunOutput } from '.
 const CLI_PATH = process.env.CODEX_CLI_PATH || 'codex'
 const MODEL = 'gpt-5.6-terra'
 const REASONING_EFFORT = 'high'
-const KILL_GRACE_MS = Number(process.env.AGENT_KILL_GRACE_MS ?? 5000)
 
 function normalizeResult(raw: string): string {
   return raw.trim()
@@ -34,7 +34,7 @@ async function run(input: AgentRunInput): Promise<AgentRunOutput> {
     input: input.prompt,
     cwd: input.workdir,
     signal: input.signal,
-    killGraceMs: KILL_GRACE_MS,
+    killGraceMs: AGENT_KILL_GRACE_MS,
   })
   return { content: normalizeResult(stdout), raw: stdout, stderr, exitCode }
 }
