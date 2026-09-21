@@ -26,15 +26,17 @@ export function DiffView({ left, right }: { left: AgentView; right: AgentView })
   const syncing = useRef(false)
 
   function sync(s: HTMLDivElement, t: HTMLDivElement) {
-    if (syncing.current) {
-      syncing.current = false
-      return
-    }
+    if (syncing.current) return
     const maxS = s.scrollHeight - s.clientHeight
     const maxT = t.scrollHeight - t.clientHeight
     if (maxS <= 0 || maxT <= 0) return
+    // 되돌아오는 scroll 이벤트로 플래그를 내리지 않는다 — scrollTop이 그대로면
+    // (양 끝단이거나 이미 같은 위치) 이벤트가 안 와서 다음 스크롤이 통째로 무시된다.
     syncing.current = true
     t.scrollTop = (s.scrollTop / maxS) * maxT
+    requestAnimationFrame(() => {
+      syncing.current = false
+    })
   }
 
   const handleLeftScroll = () => {

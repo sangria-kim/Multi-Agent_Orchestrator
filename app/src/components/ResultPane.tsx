@@ -95,7 +95,9 @@ export function ResultPane({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    // min-h-0: grid/flex 자식은 min-height가 auto라 이게 없으면 콘텐츠 높이만큼
+    // 늘어나 부모의 70vh를 무시하고, 패널 내부 스크롤이 아예 생기지 않는다.
+    <div className="flex h-full min-h-0 flex-col">
       <div className="mb-3 flex items-center justify-between gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="font-medium capitalize">{view.id}</span>
