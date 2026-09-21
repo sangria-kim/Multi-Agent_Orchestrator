@@ -1,12 +1,16 @@
 import { spawn } from 'node:child_process'
+import os from 'node:os'
+
+import type { AgentHealth } from './types'
 
 export interface SpawnCliOptions {
   cliPath: string
   args: string[]
-  input: string
   cwd: string
-  signal: AbortSignal
-  killGraceMs: number
+  input?: string
+  // 없으면 중도 취소를 지원하지 않는다 (--version처럼 즉시 끝나는 호출).
+  signal?: AbortSignal
+  killGraceMs?: number
 }
 
 export interface SpawnCliResult {
@@ -31,9 +35,10 @@ export function spawnCli(opts: SpawnCliOptions): Promise<SpawnCliResult> {
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
     let killTimer: NodeJS.Timeout | undefined
+    const signal = opts.signal
 
     const cleanup = () => {
-      opts.signal.removeEventListener('abort', onAbort)
+      signal?.removeEventListener('abort', onAbort)
       if (killTimer) clearTimeout(killTimer)
     }
 
@@ -51,9 +56,9 @@ export function spawnCli(opts: SpawnCliOptions): Promise<SpawnCliResult> {
         } catch {
           // 이미 종료된 경우
         }
-      }, opts.killGraceMs)
+      }, opts.killGraceMs ?? 5000)
     }
-    opts.signal.addEventListener('abort', onAbort)
+    signal?.addEventListener('abort', onAbort)
 
     child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
     child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk))
@@ -79,10 +84,22 @@ export function spawnCli(opts: SpawnCliOptions): Promise<SpawnCliResult> {
       })
     })
 
-    child.stdin.write(opts.input, () => {
+    child.stdin.write(opts.input ?? '', () => {
       child.stdin.end()
     })
 
-    if (opts.signal.aborted) onAbort()
+    if (signal?.aborted) onAbort()
   })
+}
+
+// CLI 설치 여부 확인. --version이 0으로 끝나면 사용 가능으로 본다.
+// cwd는 레포 밖 임시 디렉터리로 둔다 — 버전 확인이 프로젝트 설정을 읽지 않게.
+export async function versionHealthCheck(cliPath: string): Promise<AgentHealth> {
+  try {
+    const { stdout, exitCode } = await spawnCli({ cliPath, args: ['--version'], cwd: os.tmpdir() })
+    if (exitCode !== 0) return { ok: false, reason: `exit ${exitCode}` }
+    return { ok: true, version: stdout.trim() }
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) }
+  }
 }

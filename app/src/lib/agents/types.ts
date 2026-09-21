@@ -1,4 +1,4 @@
-export type AgentId = 'claude' | 'codex' | 'mock' // 향후 'gemini' 추가
+export type AgentId = 'claude' | 'codex'
 
 export interface AgentRunInput {
   prompt: string // buildPrompt() 결과. 모든 Agent가 동일한 값을 받는다
@@ -7,7 +7,7 @@ export interface AgentRunInput {
 }
 
 export interface AgentRunOutput {
-  content: string // normalizeResult() 통과 후의 본문
+  content: string // 앞뒤 공백을 다듬은 본문. result.md에 그대로 저장된다
   raw: string // 가공 전 stdout 전문
   stderr: string
   exitCode: number
@@ -23,5 +23,4 @@ export interface AgentAdapter {
   id: AgentId
   healthCheck(): Promise<AgentHealth>
   run(input: AgentRunInput): Promise<AgentRunOutput>
-  normalizeResult(raw: string): string
 }
