@@ -2,7 +2,7 @@ import fs from 'node:fs'
 
 import * as registry from '../agents/registry'
 import type { AgentAdapter, AgentId, AgentRunOutput } from '../agents/types'
-import { AGENT_TIMEOUT_MS } from '../env'
+import { agentTimeoutMs } from '../env'
 import { attemptDir, createTaskFolder, errorPath, execWorkdir, promptPath, resultPath, taskJsonPath } from '../store/paths'
 import { readAgentStatus } from '../store/read'
 import type { TaskFile } from '../store/types'
@@ -97,7 +97,7 @@ async function runOneAttempt(
 
   const controller = new AbortController()
   running.set(key, controller)
-  const timer = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), agentTimeoutMs())
 
   const startedAt = new Date()
   updateAgentStatus(taskId, adapter.id, attempt, { status: 'running', startedAt: startedAt.toISOString() })

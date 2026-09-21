@@ -1,13 +1,14 @@
 import { AGENT_KILL_GRACE_MS } from '../env'
+import { resolveAgentOptions } from './options'
 import { spawnCli, versionHealthCheck } from './spawn'
 import type { AgentAdapter, AgentRunInput, AgentRunOutput } from './types'
 
 // 00-prerequisites.md에서 확인한 고정값. 추측으로 바꾸지 않는다.
 const CLI_PATH = process.env.CODEX_CLI_PATH || 'codex'
-const MODEL = 'gpt-5.6-terra'
-const REASONING_EFFORT = 'high'
 
 async function run(input: AgentRunInput): Promise<AgentRunOutput> {
+  // 실행 시점에 읽는다 — 설정 변경이 다음 실행부터 반영된다.
+  const { model, effort } = resolveAgentOptions('codex')
   const { stdout, stderr, exitCode } = await spawnCli({
     cliPath: CLI_PATH,
     args: [
@@ -21,9 +22,9 @@ async function run(input: AgentRunInput): Promise<AgentRunOutput> {
       '--ephemeral',
       '--ignore-user-config',
       '-m',
-      MODEL,
+      model,
       '-c',
-      `model_reasoning_effort=${REASONING_EFFORT}`,
+      `model_reasoning_effort=${effort}`,
     ],
     input: input.prompt,
     cwd: input.workdir,

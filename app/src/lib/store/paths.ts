@@ -2,19 +2,15 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-// 설정 파일은 데이터 디렉터리 자신의 위치를 담으므로 데이터 디렉터리 밖(cwd)에 둔다.
-export const SETTINGS_PATH = path.resolve(process.cwd(), '.settings.json')
+import { readSettings } from './settings'
 
 export type DataDirSource = 'settings' | 'env' | 'default'
 
 // 설정 화면 > 환경변수 > 기본값. 매 호출마다 파일을 읽으므로 재시작 없이 반영된다.
 export function dataDirWithSource(): { dir: string; source: DataDirSource } {
-  try {
-    const saved = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')).dataDir
-    if (typeof saved === 'string' && saved.trim()) return { dir: saved, source: 'settings' }
-  } catch {
-    // 파일 없음/깨진 JSON → 아래 폴백
-  }
+  const saved = readSettings().dataDir
+  if (typeof saved === 'string' && saved.trim()) return { dir: saved, source: 'settings' }
+
   const env = process.env.ORCHESTRATOR_DATA_DIR
   // 상대 경로는 프로세스 시작 시점의 cwd 기준으로 절대화한다
   // (00-prerequisites.md: dev/build/start의 process.cwd()가 같다는 보장이 없다)
@@ -24,10 +20,6 @@ export function dataDirWithSource(): { dir: string; source: DataDirSource } {
 
 export function tasksDir(): string {
   return path.join(dataDirWithSource().dir, 'tasks')
-}
-
-export function saveDataDir(dir: string | null): void {
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify({ dataDir: dir }, null, 2), 'utf8')
 }
 
 function pad(n: number, width = 2): string {

@@ -1,16 +1,17 @@
 import { AGENT_KILL_GRACE_MS } from '../env'
+import { resolveAgentOptions } from './options'
 import { spawnCli, versionHealthCheck } from './spawn'
 import type { AgentAdapter, AgentRunInput, AgentRunOutput } from './types'
 
 // 00-prerequisites.md에서 확인한 고정값. 추측으로 바꾸지 않는다.
 const CLI_PATH = process.env.CLAUDE_CLI_PATH || 'claude'
-const MODEL = 'sonnet'
-const EFFORT = 'high'
 
 async function run(input: AgentRunInput): Promise<AgentRunOutput> {
+  // 실행 시점에 읽는다 — 설정 변경이 다음 실행부터 반영된다.
+  const { model, effort } = resolveAgentOptions('claude')
   const { stdout, stderr, exitCode } = await spawnCli({
     cliPath: CLI_PATH,
-    args: ['-p', '--tools', '', '--output-format', 'text', '--model', MODEL, '--effort', EFFORT],
+    args: ['-p', '--tools', '', '--output-format', 'text', '--model', model, '--effort', effort],
     input: input.prompt,
     cwd: input.workdir,
     signal: input.signal,

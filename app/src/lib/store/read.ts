@@ -1,12 +1,8 @@
 import fs from 'node:fs'
 
-import { AGENT_KILL_GRACE_MS, AGENT_TIMEOUT_MS } from '../env'
+import { AGENT_KILL_GRACE_MS, agentTimeoutMs } from '../env'
 import { errorPath, resultPath, statusPath, taskDir, taskJsonPath, tasksDir } from './paths'
 import type { AgentStatusFile, AttemptStatus, TaskFile, TaskState } from './types'
-
-// running 상태가 서버 재시작으로 멈춰 있는지 판단하는 기준. 타임아웃 한도 +
-// kill grace 만큼 여유를 둬 정상적으로 timeout 처리 중인 것과 헷갈리지 않게 한다.
-const STALE_AFTER_MS = AGENT_TIMEOUT_MS + AGENT_KILL_GRACE_MS
 
 function readJson<T>(filePath: string): T | null {
   try {
@@ -31,8 +27,10 @@ export function computeAgentState(status: AgentStatusFile | null): AttemptStatus
   const latest = status.attempts.find((a) => a.attempt === status.latestAttempt)
   if (!latest) return 'queued'
   if (latest.status === 'running' && latest.startedAt) {
+    // running이 서버 재시작으로 멈춰 있는지 판단한다. 타임아웃 한도 + kill grace 만큼
+    // 여유를 둬 정상적으로 timeout 처리 중인 것과 헷갈리지 않게 한다.
     const startedAt = new Date(latest.startedAt).getTime()
-    if (Date.now() - startedAt > STALE_AFTER_MS) return 'failed'
+    if (Date.now() - startedAt > agentTimeoutMs() + AGENT_KILL_GRACE_MS) return 'failed'
   }
   return latest.status
 }
