@@ -8,24 +8,7 @@ import remarkGfm from 'remark-gfm'
 import type { AgentView } from '@/lib/store/read'
 
 import { AgentStatusBadge } from './StatusBadge'
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1500)
-        })
-      }}
-      className="rounded border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-    >
-      {copied ? '복사됨' : 'Markdown 복사'}
-    </button>
-  )
-}
+import { CopyButton } from './CopyButton'
 
 function MarkdownBody({ content }: { content: string }) {
   const [raw, setRaw] = useState(false)
@@ -118,7 +101,7 @@ export function ResultPane({
           <span className="font-medium capitalize">{view.id}</span>
           <AgentStatusBadge status={view.status} />
         </div>
-        {view.status === 'completed' && view.result && <CopyButton text={view.result} />}
+        {view.status === 'completed' && view.result && <CopyButton text={view.result} label="Markdown 복사" />}
       </div>
       <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-auto">
         {body}

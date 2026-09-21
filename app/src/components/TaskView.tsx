@@ -5,28 +5,11 @@ import { useState } from 'react'
 import type { TaskDetail } from '@/lib/store/read'
 
 import { AgentStatusRow } from './AgentStatusRow'
+import { CopyButton } from './CopyButton'
 import { DiffView } from './DiffView'
 import { ResultPane } from './ResultPane'
 import { TaskStatusBadge } from './StatusBadge'
 import { useTask } from './useTask'
-
-function CopyPathButton({ path }: { path: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(path).then(() => {
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1500)
-        })
-      }}
-      className="rounded border border-zinc-300 px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-    >
-      {copied ? '복사됨' : '경로 복사'}
-    </button>
-  )
-}
 
 export function TaskView({ taskId, initial }: { taskId: string; initial: TaskDetail }) {
   const [detail, setDetail] = useTask(taskId, initial)
@@ -75,7 +58,7 @@ export function TaskView({ taskId, initial }: { taskId: string; initial: TaskDet
           <code className="truncate rounded bg-zinc-100 px-2 py-1 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
             {detail.taskDir}
           </code>
-          <CopyPathButton path={detail.taskDir} />
+          <CopyButton text={detail.taskDir} label="경로 복사" />
         </div>
       </div>
 

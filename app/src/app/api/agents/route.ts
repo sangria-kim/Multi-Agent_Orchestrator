@@ -10,10 +10,7 @@ let cache: Record<string, AgentHealth> | null = null
 export async function GET() {
   if (!cache) cache = await registry.healthCheckAll()
 
-  const agents = registry.enabled().map((adapter) => ({
-    id: adapter.id,
-    ...cache![adapter.id],
-  }))
+  const agents = Object.entries(cache).map(([id, health]) => ({ id, ...health }))
 
   return NextResponse.json({ agents })
 }
