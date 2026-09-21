@@ -33,6 +33,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/tasks" className="text-zinc-600 hover:underline dark:text-zinc-400">
               작업 목록
             </Link>
+            <Link href="/settings" className="text-zinc-600 hover:underline dark:text-zinc-400">
+              설정
+            </Link>
           </nav>
         </header>
         <div className="flex flex-1 flex-col">{children}</div>

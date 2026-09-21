@@ -2,10 +2,33 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-// 상대 경로이므로 프로세스 시작 시점에 한 번 절대 경로화해 모듈 상수로 고정한다.
-// (00-prerequisites.md: dev/build/start의 process.cwd()가 같다는 보장이 없다)
-export const DATA_DIR = path.resolve(process.cwd(), process.env.ORCHESTRATOR_DATA_DIR || './.data')
-export const TASKS_DIR = path.join(DATA_DIR, 'tasks')
+// 설정 파일은 데이터 디렉터리 자신의 위치를 담으므로 데이터 디렉터리 밖(cwd)에 둔다.
+export const SETTINGS_PATH = path.resolve(process.cwd(), '.settings.json')
+
+export type DataDirSource = 'settings' | 'env' | 'default'
+
+// 설정 화면 > 환경변수 > 기본값. 매 호출마다 파일을 읽으므로 재시작 없이 반영된다.
+export function dataDirWithSource(): { dir: string; source: DataDirSource } {
+  try {
+    const saved = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')).dataDir
+    if (typeof saved === 'string' && saved.trim()) return { dir: saved, source: 'settings' }
+  } catch {
+    // 파일 없음/깨진 JSON → 아래 폴백
+  }
+  const env = process.env.ORCHESTRATOR_DATA_DIR
+  // 상대 경로는 프로세스 시작 시점의 cwd 기준으로 절대화한다
+  // (00-prerequisites.md: dev/build/start의 process.cwd()가 같다는 보장이 없다)
+  if (env) return { dir: path.resolve(process.cwd(), env), source: 'env' }
+  return { dir: path.resolve(process.cwd(), './.data'), source: 'default' }
+}
+
+export function tasksDir(): string {
+  return path.join(dataDirWithSource().dir, 'tasks')
+}
+
+export function saveDataDir(dir: string | null): void {
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify({ dataDir: dir }, null, 2), 'utf8')
+}
 
 function pad(n: number, width = 2): string {
   return String(n).padStart(width, '0')
@@ -31,7 +54,7 @@ function slugify(title: string): string {
 }
 
 export function taskDir(taskId: string): string {
-  return path.join(TASKS_DIR, taskId)
+  return path.join(tasksDir(), taskId)
 }
 
 export function taskJsonPath(taskId: string): string {
@@ -70,7 +93,7 @@ export function execWorkdir(taskId: string, agentId: string, attempt: number): s
 // taskId 폴더 생성. 존재 확인 후 생성이 아니라 mkdirSync(recursive:false)의 실패를
 // 충돌 신호로 쓴다 (확인과 생성 사이의 경쟁을 없앤다).
 export function createTaskFolder(title?: string | null): { id: string; dir: string } {
-  fs.mkdirSync(TASKS_DIR, { recursive: true })
+  fs.mkdirSync(tasksDir(), { recursive: true })
   const ts = formatTimestamp(new Date())
   const slug = title ? slugify(title) : ''
   const base = slug ? `${ts}-${slug}` : ts
@@ -78,7 +101,7 @@ export function createTaskFolder(title?: string | null): { id: string; dir: stri
   let suffix = 0
   for (;;) {
     const candidate = suffix === 0 ? base : `${base}-${suffix + 1}`
-    const dir = path.join(TASKS_DIR, candidate)
+    const dir = path.join(tasksDir(), candidate)
     try {
       fs.mkdirSync(dir, { recursive: false })
       return { id: candidate, dir }

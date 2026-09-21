@@ -17,6 +17,11 @@ const globalForRunner = globalThis as unknown as {
 const running: Map<string, AbortController> =
   globalForRunner.__multiOrchestratorRunning ?? (globalForRunner.__multiOrchestratorRunning = new Map())
 
+// 실행 중에 저장 위치가 바뀌면 진행 중인 attempt의 결과가 새 위치로 떨어져 task가 쪼개진다.
+export function hasRunningAgents(): boolean {
+  return running.size > 0
+}
+
 export interface CreateTaskInput {
   title?: string | null
   request: string

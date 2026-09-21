@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { AGENT_KILL_GRACE_MS, AGENT_TIMEOUT_MS } from '../env'
-import { errorPath, resultPath, statusPath, taskDir, taskJsonPath, TASKS_DIR } from './paths'
+import { errorPath, resultPath, statusPath, taskDir, taskJsonPath, tasksDir } from './paths'
 import type { AgentStatusFile, AttemptStatus, TaskFile, TaskState } from './types'
 
 // running 상태가 서버 재시작으로 멈춰 있는지 판단하는 기준. 타임아웃 한도 +
@@ -66,8 +66,8 @@ export interface TaskSummary {
 
 // 작업 폴더를 이름 역순(최신순)으로 최대 limit개 읽는다. 검색·필터·페이지네이션은 없다.
 export function listTasks(limit: number): TaskSummary[] {
-  if (!fs.existsSync(TASKS_DIR)) return []
-  const ids = fs.readdirSync(TASKS_DIR).sort().reverse().slice(0, limit)
+  if (!fs.existsSync(tasksDir())) return []
+  const ids = fs.readdirSync(tasksDir()).sort().reverse().slice(0, limit)
 
   return ids.flatMap((id) => {
     const task = readTask(id)
