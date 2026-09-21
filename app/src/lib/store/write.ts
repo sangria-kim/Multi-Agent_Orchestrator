@@ -7,16 +7,12 @@ import type { AttemptRecord, AttemptStatus } from './types'
 
 // 쓰기는 항상 원자적으로 한다: 같은 디렉터리에 임시 파일로 쓰고 rename으로 교체한다.
 // 같은 파일시스템 안의 rename은 원자적이라, 폴링하는 쪽은 항상 완결된 파일을 본다.
-function writeAtomic(filePath: string, data: string): void {
+export function writeAtomic(filePath: string, data: string): void {
   const dir = path.dirname(filePath)
   fs.mkdirSync(dir, { recursive: true })
   const tmpPath = path.join(dir, `.${path.basename(filePath)}.tmp-${process.pid}-${Date.now()}`)
   fs.writeFileSync(tmpPath, data, 'utf8')
   fs.renameSync(tmpPath, filePath)
-}
-
-export function writeTextAtomic(filePath: string, text: string): void {
-  writeAtomic(filePath, text)
 }
 
 export function writeJsonAtomic(filePath: string, data: unknown): void {

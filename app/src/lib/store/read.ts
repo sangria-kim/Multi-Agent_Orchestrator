@@ -26,20 +26,20 @@ export function readAgentStatus(taskId: string, agentId: string): AgentStatusFil
 
 // 서버가 죽으면 running으로 남은 status.json이 생긴다. 부팅 시 정리하지 않고,
 // 읽는 쪽에서 startedAt이 한도를 넘긴 running을 failed로 간주한다.
-export function computeAgentState(status: AgentStatusFile | null, staleAfterMs: number): AttemptStatus {
+export function computeAgentState(status: AgentStatusFile | null): AttemptStatus {
   if (!status) return 'queued'
   const latest = status.attempts.find((a) => a.attempt === status.latestAttempt)
   if (!latest) return 'queued'
   if (latest.status === 'running' && latest.startedAt) {
     const startedAt = new Date(latest.startedAt).getTime()
-    if (Date.now() - startedAt > staleAfterMs) return 'failed'
+    if (Date.now() - startedAt > STALE_AFTER_MS) return 'failed'
   }
   return latest.status
 }
 
 // 각 Agent의 최신 attempt 기준으로 Task 전체 상태를 계산한다. Agent 수와 무관하게 성립한다.
-export function computeTaskState(taskId: string, agentIds: string[], staleAfterMs: number): TaskState {
-  const states = agentIds.map((id) => computeAgentState(readAgentStatus(taskId, id), staleAfterMs))
+export function computeTaskState(taskId: string, agentIds: string[]): TaskState {
+  const states = agentIds.map((id) => computeAgentState(readAgentStatus(taskId, id)))
   if (states.some((s) => s === 'queued' || s === 'running')) return 'running'
   const completedCount = states.filter((s) => s === 'completed').length
   if (completedCount === states.length) return 'completed'
@@ -75,7 +75,7 @@ export function listTasks(limit: number): TaskSummary[] {
 
     const agentStates: Record<string, AttemptStatus> = {}
     for (const agentId of task.agents) {
-      agentStates[agentId] = computeAgentState(readAgentStatus(id, agentId), STALE_AFTER_MS)
+      agentStates[agentId] = computeAgentState(readAgentStatus(id, agentId))
     }
 
     return [
@@ -84,7 +84,7 @@ export function listTasks(limit: number): TaskSummary[] {
         title: task.title,
         request: task.request,
         createdAt: task.createdAt,
-        taskState: computeTaskState(id, task.agents, STALE_AFTER_MS),
+        taskState: computeTaskState(id, task.agents),
         agentStates,
       },
     ]
@@ -96,9 +96,7 @@ export interface AgentView {
   attempt: number
   status: AttemptStatus
   startedAt?: string
-  completedAt?: string
   executionTimeMs?: number
-  exitCode?: number
   result?: string
   error?: string
   // 최신 attempt가 실패/timeout인데 이전에 completed된 attempt가 있으면 채운다.
@@ -111,7 +109,6 @@ export interface TaskDetail {
   request: string
   context: string | null
   createdAt: string
-  agents: string[]
   taskDir: string
   taskState: TaskState
   agentViews: AgentView[]
@@ -125,7 +122,7 @@ export function getTaskDetail(taskId: string): TaskDetail | null {
 
   const agentViews: AgentView[] = task.agents.map((agentId) => {
     const statusFile = readAgentStatus(taskId, agentId)
-    const status = computeAgentState(statusFile, STALE_AFTER_MS)
+    const status = computeAgentState(statusFile)
     const attempt = statusFile?.latestAttempt ?? 1
     const latest = statusFile?.attempts.find((a) => a.attempt === attempt)
 
@@ -134,9 +131,7 @@ export function getTaskDetail(taskId: string): TaskDetail | null {
       attempt,
       status,
       startedAt: latest?.startedAt,
-      completedAt: latest?.completedAt,
       executionTimeMs: latest?.executionTimeMs,
-      exitCode: latest?.exitCode,
     }
 
     if (status === 'completed') {
@@ -164,9 +159,8 @@ export function getTaskDetail(taskId: string): TaskDetail | null {
     request: task.request,
     context: task.context,
     createdAt: task.createdAt,
-    agents: task.agents,
     taskDir: taskDir(taskId),
-    taskState: computeTaskState(taskId, task.agents, STALE_AFTER_MS),
+    taskState: computeTaskState(taskId, task.agents),
     agentViews,
   }
 }

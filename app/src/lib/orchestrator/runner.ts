@@ -6,7 +6,7 @@ import { AGENT_TIMEOUT_MS } from '../env'
 import { attemptDir, createTaskFolder, errorPath, execWorkdir, promptPath, resultPath, taskJsonPath } from '../store/paths'
 import { readAgentStatus } from '../store/read'
 import type { TaskFile } from '../store/types'
-import { updateAgentStatus, writeJsonAtomic, writeTextAtomic } from '../store/write'
+import { updateAgentStatus, writeAtomic, writeJsonAtomic } from '../store/write'
 import { buildPrompt } from './prompt'
 
 // dev 리로드를 넘겨 진행 중인 실행을 계속 추적하기 위해 globalThis에 캐시한다.
@@ -31,7 +31,7 @@ export interface CreateTaskResult {
 }
 
 // 요청 검증, taskId/작업 폴더 생성, prompt.md·task.json 저장, 각 Agent의 attempt-1을
-// queued로 표시하는 데까지만 담당한다. 실제 실행은 runTask/runAgents가 한다.
+// queued로 표시하는 데까지만 담당한다. 실제 실행은 runTask가 한다.
 export async function createTask(input: CreateTaskInput): Promise<CreateTaskResult> {
   if (!input.request || !input.request.trim()) {
     throw new Error('request must not be empty')
@@ -44,7 +44,7 @@ export async function createTask(input: CreateTaskInput): Promise<CreateTaskResu
   const { id: taskId } = createTaskFolder(input.title ?? undefined)
   const prompt = buildPrompt({ request: input.request, context: input.context ?? null })
 
-  writeTextAtomic(promptPath(taskId), prompt)
+  writeAtomic(promptPath(taskId), prompt)
   const task: TaskFile = {
     id: taskId,
     title: input.title?.trim() || null,
@@ -108,7 +108,7 @@ async function runOneAttempt(
 
     // 우리가 타임아웃으로 죽인 경우, 실제 종료 코드와 무관하게 timeout으로 기록한다.
     if (controller.signal.aborted) {
-      writeTextAtomic(errorPath(taskId, adapter.id, attempt), formatError(output.raw, output.stderr))
+      writeAtomic(errorPath(taskId, adapter.id, attempt), formatError(output.raw, output.stderr))
       updateAgentStatus(taskId, adapter.id, attempt, {
         status: 'timeout',
         completedAt: completedAt.toISOString(),
@@ -120,7 +120,7 @@ async function runOneAttempt(
 
     // 판정은 종료 코드 하나로 한다. stderr가 비어 있는지는 보지 않는다.
     if (output.exitCode === 0) {
-      writeTextAtomic(resultPath(taskId, adapter.id, attempt), output.content)
+      writeAtomic(resultPath(taskId, adapter.id, attempt), output.content)
       updateAgentStatus(taskId, adapter.id, attempt, {
         status: 'completed',
         completedAt: completedAt.toISOString(),
@@ -128,7 +128,7 @@ async function runOneAttempt(
         exitCode: 0,
       })
     } else {
-      writeTextAtomic(errorPath(taskId, adapter.id, attempt), formatError(output.raw, output.stderr))
+      writeAtomic(errorPath(taskId, adapter.id, attempt), formatError(output.raw, output.stderr))
       updateAgentStatus(taskId, adapter.id, attempt, {
         status: 'failed',
         completedAt: completedAt.toISOString(),
@@ -142,7 +142,7 @@ async function runOneAttempt(
     const executionTimeMs = completedAt.getTime() - startedAt.getTime()
     const status = controller.signal.aborted ? 'timeout' : 'failed'
     const message = err instanceof Error ? (err.stack ?? err.message) : String(err)
-    writeTextAtomic(errorPath(taskId, adapter.id, attempt), message)
+    writeAtomic(errorPath(taskId, adapter.id, attempt), message)
     updateAgentStatus(taskId, adapter.id, attempt, {
       status,
       completedAt: completedAt.toISOString(),
@@ -158,20 +158,8 @@ async function runOneAttempt(
   }
 }
 
-// 실행 핵심부. 넘겨받은 adapter 목록을 동시에 실행한다 — registry나 "2개"를 전혀
+// 실행 핵심부. 넘겨받은 Agent들의 attempt-1을 동시에 실행한다 — "2개"를 전혀
 // 참조하지 않으므로 몇 개를 넘기든 동일하게 동작한다.
-export async function runAgents(
-  taskId: string,
-  prompt: string,
-  adapters: AgentAdapter[],
-  attempt: number,
-  options?: RunAgentsOptions,
-): Promise<void> {
-  // Promise.all은 첫 실패에서 즉시 reject되므로 쓰지 않는다. 한 Agent의 실패가
-  // 다른 Agent의 실행에 영향을 주면 안 된다.
-  await Promise.allSettled(adapters.map((adapter) => runOneAttempt(taskId, prompt, adapter, attempt, options)))
-}
-
 export async function runTask(
   taskId: string,
   prompt: string,
@@ -183,14 +171,16 @@ export async function runTask(
     if (!adapter) throw new Error(`unknown agent: ${id}`)
     return adapter
   })
-  await runAgents(taskId, prompt, adapters, 1, options)
+  // Promise.all은 첫 실패에서 즉시 reject되므로 쓰지 않는다. 한 Agent의 실패가
+  // 다른 Agent의 실행에 영향을 주면 안 된다.
+  await Promise.allSettled(adapters.map((adapter) => runOneAttempt(taskId, prompt, adapter, 1, options)))
 }
 
 // 해당 Agent만 재실행한다. 재실행은 저장된 prompt.md를 그대로 읽어 쓴다 — task.json에서
 // 다시 조립하면 buildPrompt()의 고정 문구가 바뀐 뒤 attempt끼리 다른 입력을 받게 된다.
 // 기존 attempt 폴더는 건드리지 않고 새 attempt 폴더를 만든다 (원칙 4: Result Preservation).
 // 실제 실행은 기다리지 않고 시작만 시킨다 — 호출자(API route)는 즉시 응답해야 한다.
-export function retryAgent(taskId: string, agentId: AgentId, options?: RunAgentsOptions): { attempt: number } {
+export function retryAgent(taskId: string, agentId: AgentId): { attempt: number } {
   const adapter = registry.get(agentId)
   if (!adapter) throw new Error(`unknown agent: ${agentId}`)
 
@@ -206,7 +196,7 @@ export function retryAgent(taskId: string, agentId: AgentId, options?: RunAgents
   fs.mkdirSync(attemptDir(taskId, agentId, attempt), { recursive: true })
   updateAgentStatus(taskId, agentId, attempt, { status: 'queued' })
 
-  runOneAttempt(taskId, prompt, adapter, attempt, options).catch((err) => {
+  runOneAttempt(taskId, prompt, adapter, attempt).catch((err) => {
     console.error(`retryAgent failed for ${taskId}/${agentId}:`, err)
   })
 

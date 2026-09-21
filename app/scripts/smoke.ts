@@ -83,7 +83,7 @@ async function main() {
   }
 
   // 5. Task 상태 계산이 completed인가
-  const taskState = computeTaskState(taskId, agentIds, 300000)
+  const taskState = computeTaskState(taskId, agentIds)
   check('Task 상태 계산 결과가 completed', taskState === 'completed', taskState)
 
   // 6. 실행 cwd가 레포 밖 임시 디렉터리였고, 실행 후 삭제되었는가
